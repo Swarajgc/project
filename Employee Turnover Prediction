@@ -1,0 +1,753 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# # Employee Turnover Prediction
+
+# In[1]:
+
+
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import plotly.express as px
+
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
+
+from category_encoders import OneHotEncoder
+from sklearn.preprocessing import  LabelEncoder,StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import (
+    ConfusionMatrixDisplay,
+    classification_report,
+    confusion_matrix,
+)
+from sklearn.linear_model import LogisticRegression
+ 
+from sklearn.model_selection import GridSearchCV, cross_val_score,train_test_split,RepeatedStratifiedKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier,GradientBoostingClassifier
+
+
+# In[2]:
+
+
+df = pd.read_csv('WA_Fn-UseC_-HR-Employee-Attrition.csv')
+
+
+# In[3]:
+
+
+df.head()
+
+
+# In[4]:
+
+
+df.info()
+
+
+# # Explotery Data analysis
+
+# In[5]:
+
+
+df[['Attrition']].head()
+
+
+# In[6]:
+
+
+att=df['Attrition'].value_counts(normalize=True)
+explode = (0.1, 0.0, )
+
+colors = ( "orange", "beige")
+
+wp = { 'linewidth' : 1, 'edgecolor' : "green" }
+
+def func(pct, allvalues):
+    absolute = int(pct / 100.*np.sum(allvalues))
+    return "{:.1f}%".format(pct, absolute)
+
+fig, ax = plt.subplots(figsize =(10, 7))
+wedges, texts, autotexts = ax.pie(att,
+                                  autopct = lambda pct: func(pct, att),
+                                  explode = explode,
+                                  labels = att.index,
+                                  shadow = True,
+                                  colors = colors,
+                                  startangle = 90,
+                                  wedgeprops = wp,
+                                  textprops = dict(color ="black"))
+
+ax.legend(wedges, att.index,
+          title ="Attition",
+          loc ="center left",
+          bbox_to_anchor =(1, 0, 0.5, 1))
+
+plt.setp(autotexts, size = 8, weight ="bold")
+ax.set_title("Propotion Of emploees attrition")
+
+plt.show()
+
+
+# # Attrition VS age
+
+# In[7]:
+
+
+df[['Age']].head(5)
+
+
+# In[8]:
+
+
+age_att = df.groupby(['Age','Attrition'])['Attrition'].count().reset_index(name='Counts')
+age_att
+
+
+# In[9]:
+
+
+import plotly.express as px
+
+
+# In[10]:
+
+
+px.line(age_att[age_att['Attrition']=='Yes'],x='Age',y='Counts',color='Attrition',title='Age line of attrition employees in an Organization')
+
+
+# # BusinessTravel vs Attrition
+
+# In[11]:
+
+
+df['BusinessTravel'].value_counts()
+
+
+# In[12]:
+
+
+n=df.groupby(['BusinessTravel','Attrition'])['BusinessTravel'].count().reset_index(name='Counts')
+n
+
+
+# In[13]:
+
+
+per=np.array([(138/150)*100,(12/150)*100,(208/(208+69))*100,(69/(208+69))*100,(887/(887+156))*100,(156/(887+156))*100]).round(3)
+n['Percent']=per
+
+
+# In[14]:
+
+
+n
+
+
+# In[15]:
+
+
+fig=px.bar(n,x='BusinessTravel',y='Counts',color='Attrition', text_auto=True,title='BusinessTravel Counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# In[17]:
+
+
+fig=px.bar(n,x='BusinessTravel',y='Percent',color='Attrition', text_auto=True,title='BusinessTravel percentage for each individual class of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# In[18]:
+
+
+dept_att=df.groupby(['Department','Attrition']).apply(lambda x:x['DailyRate'].count()).reset_index(name='Counts')
+per=np.array([(51/(51+12))*100,(12/(51+12))*100,(828/(828+133))*100,(133/(828+133))*100,(354/(354+93))*100,(93/(354+93))*100]).round(2)
+dept_att['Percent']=per
+
+
+# In[19]:
+
+
+fig=px.bar(dept_att,x='Department',y='Counts',color='Attrition', text_auto=True,title='Department counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# In[20]:
+
+
+fig=px.bar(dept_att,x='Department',y='Percent',color='Attrition', text_auto=True,title='Department propotion for each individual class of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# # Daily Rate vs Attrition
+
+# In[21]:
+
+
+df.boxplot(by= 'Attrition',column='DailyRate',vert=False)
+
+
+# In[22]:
+
+
+rate_att=df.groupby(['DailyRate','Attrition']).apply(lambda x:x['DailyRate'].count()).reset_index(name='Counts')
+
+
+# In[23]:
+
+
+fig=px.histogram(rate_att[rate_att['Attrition']=='Yes'],x='DailyRate',y='Counts',nbins=20,color='Attrition', title='DailyRate counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# # Distance Fron Home vs Attrition
+
+# In[24]:
+
+
+df['DistanceFromHome'].head()
+
+
+# In[25]:
+
+
+dist_att=df.groupby(['DistanceFromHome','Attrition'])['Attrition'].count().reset_index(name='Counts')
+
+
+# In[26]:
+
+
+px.histogram(dist_att,x='DistanceFromHome',y='Counts',color='Attrition',title='Distance From Home propotion for attrition classes of employees in an Organization')
+
+
+# # Education vs Attrition
+
+# In[27]:
+
+
+df['Education'].unique()
+
+
+# In[28]:
+
+
+df['EducationField'].unique()
+
+
+# In[29]:
+
+
+edu_att=df.groupby(['Education','Attrition'])['Attrition'].count().reset_index(name='Counts')
+edu_att[edu_att['Attrition']=='Yes']
+
+
+# In[30]:
+
+
+fig=px.bar(edu_att,x='Education',y='Counts',color='Attrition', text_auto=True,title='Education counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0,
+    xaxis_title="Education",
+    yaxis_title="Proportion",)
+
+fig.show()
+
+
+# In[31]:
+
+
+perc=np.array([(139/(139+31))*100,(31/(139+31))*100,(238/(238+44))*100,(44/(238+44))*100,
+               (473/(473+99))*100,(99/(473+99))*100,(340/(340+58))*100,(58/(340+58))*100
+              ,(43/(43+5))*100,(5/(34+5))*100]).round(2)
+edu_att['Percent']=perc
+
+
+# In[32]:
+
+
+fig=px.bar(edu_att,x='Education',y='Percent',color='Attrition', text_auto=True,title='Education propotion for each individual class of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# In[33]:
+
+
+eduf_att=df.groupby(['EducationField','Attrition'])['Attrition'].count().reset_index(name='Counts')
+eduf_att[eduf_att['Attrition']=='Yes']
+
+
+# In[34]:
+
+
+fig=px.bar(eduf_att,x='EducationField',y='Counts',color='Attrition', text_auto=True,title='EducationField counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0,
+    xaxis_title="EducationField",
+    yaxis_title="Proportion",)
+
+fig.show()
+
+
+# In[35]:
+
+
+envs_att=df.groupby(['EnvironmentSatisfaction','Attrition'])['Attrition'].count().reset_index(name='Counts')
+envs_att[envs_att['Attrition']=='Yes']
+
+
+# In[36]:
+
+
+fig=px.area(envs_att,x='EnvironmentSatisfaction',y='Counts',color='Attrition',title='EnvironmentSatisfaction counts of employees in an Organization')
+
+
+fig.show()
+
+
+# In[37]:
+
+
+perc_envs=np.array([(212/(212+72))*100,(72/(212+72))*100,(244/(244+43))*100,(43/(244+43))*100,
+               (391/(391+62))*100,(62/(391+62))*100,(386/(386+60))*100,(60/(386+60))*100]).round(2)
+envs_att['Percent']=perc_envs
+
+
+# In[38]:
+
+
+fig=px.bar(envs_att,x='EnvironmentSatisfaction',y='Percent',color='Attrition', text_auto=True,title='Environment Satisfaction propotion for each individual class of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# In[39]:
+
+
+gndr_att=df.groupby(['Gender','Attrition'])['Attrition'].count().reset_index(name='Counts')
+gndr_att[gndr_att['Attrition']=='Yes']
+
+
+# In[40]:
+
+
+fig=px.bar(gndr_att,x='Gender',y='Counts',color='Attrition', text_auto=True,title='Gender counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0,
+    xaxis_title=" Gender",
+    yaxis_title="Proportion",)
+
+fig.show()
+
+
+# In[41]:
+
+
+perc_gndr=np.array([(501/(501+87))*100,(87/(501+87))*100,(732/(732+150))*100,(150/(732+150))*100]).round(2)
+gndr_att['Percent']=perc_gndr
+
+
+# In[42]:
+
+
+fig=px.bar(gndr_att,x='Gender',y='Percent',color='Attrition', text_auto=True,title='Gender propotion for each individual class of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# # Joninvolvement vs Attrition
+
+# In[43]:
+
+
+jinv_att=df.groupby(['JobInvolvement','Attrition'])['Attrition'].count().reset_index(name='Counts')
+jinv_att[jinv_att['Attrition']=='Yes']
+
+
+# In[44]:
+
+
+fig=px.bar(jinv_att,x='JobInvolvement',y='Counts',color='Attrition', text_auto=True,title='Job Involvement counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0,
+    xaxis_title="Education",
+    yaxis_title="Proportion",)
+
+fig.show()
+
+
+# In[45]:
+
+
+per_jinv=np.array([(55/(55+28))*100,(28/(55+28))*100,(304/(304+71))*100,(71/(304+71))*100,
+               (743/(743+125))*100,(125/(743+125))*100,(131/(131+13))*100,(13/(131+13))*100]).round(2)
+jinv_att['Percent']=per_jinv
+
+
+# In[46]:
+
+
+fig=px.bar(jinv_att,x='JobInvolvement',y='Percent',color='Attrition', text_auto=True,title='Job Involvement propotion for each individual class of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# # RelaationshipSatisfaction vs Attrition
+
+# In[47]:
+
+
+rltnS_att=df.groupby(['RelationshipSatisfaction','Attrition'])['Attrition'].count().reset_index(name='Counts')
+rltnS_att[rltnS_att['Attrition']=='Yes']
+
+
+# In[48]:
+
+
+fig=px.bar(rltnS_att,x='RelationshipSatisfaction',y='Counts',color='Attrition', text_auto=True,title='Relationship Satisfaction counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0,
+    xaxis_title="Relation shipSatisfaction",
+    yaxis_title="Proportion",)
+
+fig.show()
+
+
+# In[49]:
+
+
+per_rltnS=np.array([(219/(219+57))*100,(57/(219+57))*100,(258/(258+45))*100,(45/(258+45))*100,
+               (388/(388+71))*100,(71/(388+71))*100,(368/(368+64))*100,(64/(368+64))*100]).round(2)
+rltnS_att['Percent']=per_rltnS
+
+
+# In[50]:
+
+
+fig=px.bar(rltnS_att,x='RelationshipSatisfaction',y='Percent',color='Attrition', text_auto=True,title='Relationship Satisfaction propotion for each individual class of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# # WorkLife Balane vs Attrition
+
+# In[51]:
+
+
+wlblnc_att=df.groupby(['WorkLifeBalance','Attrition'])['Attrition'].count().reset_index(name='Counts')
+wlblnc_att[wlblnc_att['Attrition']=='Yes']
+
+
+# In[52]:
+
+
+fig=px.bar(wlblnc_att,x='WorkLifeBalance',y='Counts',color='Attrition', text_auto=True,title='WorkLife Balance counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0,
+    xaxis_title="WorkLife Balance",
+    yaxis_title="Proportion",)
+
+fig.show()
+
+
+# In[53]:
+
+
+per_wlblnc=np.array([(55/(25+55))*100,(25/(55+25))*100,(286/(286+58))*100,(58/(286+58))*100,
+               (766/(766+127))*100,(127/(766+127))*100,(126/(126+27))*100,(27/(126+27))*100]).round(2)
+wlblnc_att['Percent']=per_wlblnc
+
+
+# In[54]:
+
+
+fig=px.bar(wlblnc_att,x='WorkLifeBalance',y='Percent',color='Attrition', text_auto=True,title='WorkLife Balance propotion for each individual class of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0)
+fig.show()
+
+
+# # Num Companies Worked vs Attrition
+
+# In[55]:
+
+
+num_c_att=df.groupby(['NumCompaniesWorked','Attrition'])['Attrition'].count().reset_index(name='Counts')
+num_c_att[num_c_att['Attrition']=='Yes']
+
+
+# In[56]:
+
+
+fig=px.area(num_c_att,x='NumCompaniesWorked',y='Counts',color='Attrition', title='Num Companies Worked  counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0,)
+
+fig.show()
+
+
+# # YearsWithCurrManager vs Attrition
+
+# In[57]:
+
+
+df['YearsWithCurrManager'].unique()
+
+
+# In[58]:
+
+
+yrs_mngr_att=df.groupby(['YearsWithCurrManager','Attrition'])['Attrition'].count().reset_index(name='Counts')
+yrs_mngr_att[yrs_mngr_att['Attrition']=='Yes']
+
+
+# In[59]:
+
+
+fig=px.line(yrs_mngr_att[yrs_mngr_att['Attrition']=='Yes'],x='YearsWithCurrManager',y='Counts',color='Attrition', title='Years With CurrManager  counts of employees in an Organization')
+fig.update_layout(barmode='group', xaxis_tickangle=0,)
+
+fig.show()
+
+
+# # Prepare Date
+
+# In[60]:
+
+
+df.describe()
+
+
+# In[61]:
+
+
+drop_cat=['Education','EnvironmentSatisfaction','StockOptionLevel','JobLevel','JobInvolvement',
+          'JobSatisfaction','PerformanceRating','RelationshipSatisfaction','WorkLifeBalance',
+         'BusinessTravel','Department','Gender','MaritalStatus','OverTime','EducationField',
+         'JobRole']
+
+drop_id=['EmployeeNumber','EmployeeCount','StandardHours','Over18']
+
+target =['Attrition']
+
+con_df=df.drop(columns=drop_cat+drop_id+target)
+len(con_df.columns)
+
+
+# In[62]:
+
+
+cum=[]
+fig,axs=plt.subplots(4,4,figsize=(25,15))
+axs=axs.flatten()
+for i,column in enumerate(con_df.columns) :
+    sns.histplot(x=column,data=df,ax=axs[i])
+    cum.append(column)
+fig.tight_layout()
+plt.show()
+print(cum)
+
+
+# In[63]:
+
+
+df['Attrition'].value_counts(normalize=True).plot(kind='bar')
+
+
+# In[64]:
+
+
+sns.boxplot(y='Age',x='Attrition',data=df)
+plt.xlabel("Bankrupt")
+plt.ylabel("Interest Expense Ratio")
+plt.title("Distribution of Interest Expense Ratio, by Class");
+
+
+# In[65]:
+
+
+corr=con_df.corr().abs()
+plt.figure(figsize = (25,15))
+
+ax = sns.heatmap(corr, annot=True, linewidths=1,cmap='mako_r')
+
+
+# In[66]:
+
+
+drop_corr=['YearsInCurrentRole', 'YearsSinceLastPromotion', 'YearsWithCurrManager']
+co=con_df.drop(columns=drop_corr).corr().abs()
+plt.figure(figsize = (25,15))
+
+ax = sns.heatmap(co, annot=True, linewidths=1,cmap='mako_r')
+
+
+# # Skewed Data
+
+# In[71]:
+
+
+Data is symmetrical: skewness is between -0.5 and 0.5
+Data is slightly skewed: skewness is between -1 and -0.5 or 0.5 and 1
+Data is highly skewed: skewness is less than -1 or greater than 1.
+
+
+# In[72]:
+
+
+sk=[]
+for i in df.drop(columns=drop_cat+target+drop_id+drop_corr).columns:
+    if ((df[i].skew()>1) or (df[i].skew()<-1)):
+        sk.append(i)
+sk
+
+
+# In[73]:
+
+
+np.seterr(divide = 'ignore') 
+sk_=pd.DataFrame(np.select([df[sk]==0, df[sk] > 0, df[sk] < 0], [0, np.log(df[sk]), np.log(df[sk])]),columns=sk).set_index(df.index)
+df_skew=df.drop(columns=sk).set_index(df.index)
+
+df_skew=pd.concat([df_skew,sk_],axis=1)
+X_skew=df_skew.drop(columns='Attrition')
+
+
+# # Split
+
+# In[74]:
+
+
+le = LabelEncoder()
+
+X = df_skew.drop(columns=target+drop_id+drop_corr)
+y = le.fit_transform( np.ravel(df[target]))
+
+print("X shape:", X.shape)
+print("y shape:", y.shape)
+
+
+# In[75]:
+
+
+y
+
+
+# In[76]:
+
+
+one_hot_encoded_X = pd.get_dummies(X, columns = drop_cat)
+
+
+# In[77]:
+
+
+X_train, X_test, y_train, y_test = train_test_split(one_hot_encoded_X,y,test_size=0.2,random_state=42)
+
+print("X_train shape:", X_train.shape)
+print("y_train shape:", y_train.shape)
+print("X_test shape:", X_test.shape)
+print("y_test shape:", y_test.shape)
+
+
+# # Resample
+
+# In[78]:
+
+
+under_sampler =RandomUnderSampler(random_state=42)
+X_train_under, y_train_under = under_sampler.fit_resample(X_train,y_train)
+print(X_train_under.shape)
+X_train_under.head()
+
+
+# In[79]:
+
+
+over_sampler = RandomOverSampler(random_state=42)
+X_train_over, y_train_over = over_sampler.fit_resample(X_train,y_train)
+print(X_train_over.shape)
+X_train_over.head()
+
+
+# # Build Model
+
+# In[80]:
+
+
+clf_LogisticRegression=make_pipeline(StandardScaler(),LogisticRegression())
+parameters = [    
+    {'logisticregression__penalty' : ['l1', 'l2', 'elasticnet'],   
+    'logisticregression__C' : [1e-5, 1e-4, 1e-3, 1, 10, 100, ] ,                     
+    'logisticregression__solver' : ['lbfgs','newton-cg','liblinear','sag','saga'],
+    'logisticregression__max_iter' : [100, 1000,2500, 5000,10000]
+    }
+]
+
+
+# In[81]:
+
+
+tuning_model=GridSearchCV(clf_LogisticRegression,param_grid=parameters,cv=3,verbose=True,scoring= 'accuracy')
+tuning_model_over=GridSearchCV(clf_LogisticRegression,param_grid=parameters,cv=3,verbose=True,scoring= 'accuracy')
+
+
+# In[82]:
+
+
+def timer(start_time=None):
+    if not start_time:
+        start_time=datetime.now()
+        return start_time
+    elif start_time:
+        thour,temp_sec=divmod((datetime.now()-start_time).total_seconds(),3600)
+        tmin,tsec=divmod(temp_sec,60)
+
+
+# # Fit tr best params
+
+# In[83]:
+
+
+tuned_hyper_model= make_pipeline(StandardScaler(),LogisticRegression(C=1,penalty='l1',solver= 'liblinear',max_iter=100))
+tuned_hyper_model_over= make_pipeline(StandardScaler(),LogisticRegression(C=1,penalty='l1',solver= 'liblinear',max_iter=100))
+
+
+# In[84]:
+
+
+tuned_hyper_model.fit(X_train,y_train)
+
+
+# In[85]:
+
+
+tuned_hyper_model_over.fit(X_train_over,y_train_over)
+
+
+# # Eveluate
+
+# In[86]:
+
+
+for m in [tuned_hyper_model, tuned_hyper_model_over]:
+    acc_train = m.score(X_train,y_train)
+    acc_test = m.score(X_test,y_test)
+
+    print("Training Accuracy:", round(acc_train, 4))
+    print("Test Accuracy:", round(acc_test, 4))
+
+
+# In[87]:
+
+
+ConfusionMatrixDisplay.from_estimator(tuned_hyper_model,X_test,y_test)
+
+
+# In[ ]:
+
+
+
+
