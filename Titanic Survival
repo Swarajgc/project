@@ -1,0 +1,65 @@
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+df = pd.read_csv('tested.csv')
+df
+df.head()
+df.tail()
+df.shape
+df.describe()
+df.info()
+df.isnull().sum()
+df.dtypes
+df['Age']=df['Age'].fillna(df['Age'].mean())
+df['Fare']=df['Fare'].fillna(df['Fare'].mean())
+df['Embarked'].unique()
+df['Embarked']=df['Embarked'].map({'Q':0,'S':1,'C':2}).astype(int)
+df['Sex']=df['Sex'].map({'female':1,'male':0}).astype(int)
+df.dtypes
+df['Age']=df['Age'].astype(int)
+df['Fare']=df['Fare'].astype(int)
+df['Cabin']=df['Cabin'].fillna(df['Cabin'].mode())
+df['Cabin'].unique()
+df['Ticket'].unique()
+df.dtypes
+data = df.drop(['PassengerId','Name','Cabin','Ticket'], axis=1, inplace=True)
+df.head()
+fig = plt.figure(figsize =(10, 7))
+plt.hist(x = [df[df['Survived']==1]['Age'], df[df['Survived']==0]['Age']],stacked=True, color = ['g','r'],label = ['Survived','Not survived'])
+plt.title('Age Histogram with Survival')
+plt.xlabel('Age')
+plt.ylabel('No of passengers')
+plt.legend()
+fig = plt.figure(figsize =(10, 7))
+plt.hist(x = [df[df['Survived']==1]['Fare'], df[df['Survived']==0]['Fare']], stacked=True, color = ['g','r'],label = ['Survived','Not survived'])
+plt.title('Fare Histogram with Survival')
+plt.xlabel('Fare')
+plt.ylabel('No of passengers')
+plt.legend()
+sns.countplot(df.Survived)
+embarked_counts = df['Embarked'].value_counts()
+plt.figure(figsize=(8, 8))
+plt.pie(embarked_counts, labels=embarked_counts.index, autopct='%1.1f%%', colors=['#66b3ff', '#99ff99', '#ff9999'])
+plt.title("Distribution of Passengers by Embarked")
+plt.legend(["Q", "S", "C"])
+plt.show()
+from sklearn.model_selection import train_test_split
+y = df['Survived']
+X = df.drop('Survived',axis =1)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+X_train
+from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression
+logreg = LogisticRegression()
+
+logreg.fit(X_train,y_train)
+pred = logreg.predict(X_test)
+pred
+from sklearn.metrics import accuracy_score
+accuracy_score(y_test,pred) * 100
+import pickle
+pickle_out = open('model.pkl', 'wb')
+pickle.dump(logreg, pickle_out)
+pickle_out.close()
+pwd
